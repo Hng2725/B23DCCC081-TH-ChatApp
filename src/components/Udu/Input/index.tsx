@@ -1,6 +1,6 @@
 import { type UDUInput } from "./types.tsx";
 import { styles } from "../styles.tsx";
-import { Text, TextInput, View } from "react-native";
+import { TextInput, View } from "react-native";
 
 function UDUInput(props: UDUInput) {
     const { placeholder, onChangeText, value, keyboardType } = props;

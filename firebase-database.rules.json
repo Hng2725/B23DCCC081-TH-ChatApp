@@ -1,0 +1,34 @@
+{
+  "rules": {
+    "users": {
+      ".read": "auth != null",
+      "$uid": {
+        ".write": "auth != null && auth.uid === $uid"
+      }
+    },
+    "conversations": {
+      "$chatId": {
+        ".read": "auth != null && data.child('members').child(auth.uid).val() === true",
+        ".write": "auth != null && !data.exists() && newData.child('members').child(auth.uid).val() === true",
+        "members": {
+          ".write": "auth != null && ((!data.exists() && newData.child(auth.uid).val() === true) || (data.child(auth.uid).val() === true && newData.val() === data.val()))",
+          ".validate": "!data.exists() || newData.val() === data.val()"
+        },
+        "messages": {
+          "$messageId": {
+            ".write": "auth != null && root.child('conversations').child($chatId).child('members').child(auth.uid).val() === true && !data.exists() && newData.exists()",
+            ".validate": "newData.hasChildren(['senderId', 'type', 'text', 'createdAt']) && newData.child('senderId').val() === auth.uid && ((newData.child('type').val() === 'text' && newData.child('text').isString()) || (newData.child('type').val() === 'location' && newData.child('latitude').isNumber() && newData.child('longitude').isNumber() && newData.child('latitude').val() >= -90 && newData.child('latitude').val() <= 90 && newData.child('longitude').val() >= -180 && newData.child('longitude').val() <= 180))"
+          }
+        }
+      }
+    },
+    "userConversations": {
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid",
+        "$chatId": {
+          ".write": "auth != null && (auth.uid === $uid || (root.child('conversations').child($chatId).child('members').child(auth.uid).val() === true && newData.child('partnerId').val() === auth.uid))"
+        }
+      }
+    }
+  }
+}

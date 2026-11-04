@@ -1,173 +1,25 @@
-import React, { useState, useRef } from 'react';
-import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  FlatList,
-  StyleSheet,
-  SafeAreaView,
-  KeyboardAvoidingView,
-  Platform,
-} from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { Alert, FlatList, KeyboardAvoidingView, Linking, PermissionsAndroid, Platform, SafeAreaView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import Geolocation from '@react-native-community/geolocation';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import AntDesign from 'react-native-vector-icons/AntDesign';
-import { sampleMessages } from '../../data/mockData';
 import Colors from '../../theme/colors';
+import { markConversationAsRead, sendLocationMessage, sendTextMessage, subscribeToMessages, subscribeToUser } from '../../services/chatService';
+import { useAuth } from '../../context/AuthContext';
+import type { ChatMessage, UserProfile } from '../../types/chat';
+import { createChatId } from '../../utils/chat';
 
-type Message = {
-  id: string;
-  text: string;
-  isMine: boolean;
-  time: string;
-};
+const timeLabel = (timestamp: number) => timestamp ? new Date(timestamp).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : '';
 
-function Chatbox() {
-  const navigation = useNavigation<any>();
-  const route = useRoute<any>();
-  const { name = 'Người dùng', avatarColor = Colors.primary } = route.params || {};
-
-  const [messages, setMessages] = useState<Message[]>(sampleMessages);
-  const [inputText, setInputText] = useState('');
-  const flatListRef = useRef<FlatList>(null);
-
-  const sendMessage = () => {
-    const text = inputText.trim();
-    if (!text) return;
-    const newMsg: Message = {
-      id: Date.now().toString(),
-      text,
-      isMine: true,
-      time: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
-    };
-    setMessages(prev => [...prev, newMsg]);
-    setInputText('');
-    setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
-  };
-
-  const renderItem = ({ item }: { item: Message }) => (
-    <View style={[styles.messageRow, item.isMine ? styles.rowRight : styles.rowLeft]}>
-      {!item.isMine && (
-        <View style={[styles.miniAvatar, { backgroundColor: avatarColor }]}>
-          <Text style={styles.miniAvatarText}>{name.charAt(0)}</Text>
-        </View>
-      )}
-      <View style={[styles.bubble, item.isMine ? styles.bubbleMe : styles.bubbleOther]}>
-        <Text style={[styles.bubbleText, item.isMine ? styles.textMe : styles.textOther]}>
-          {item.text}
-        </Text>
-        <Text style={[styles.timeText, item.isMine ? styles.timeMe : styles.timeOther]}>
-          {item.time}
-        </Text>
-      </View>
-    </View>
-  );
-
-  return (
-    <SafeAreaView style={styles.safeArea}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-          <AntDesign name="arrowleft" size={22} color={Colors.primary} />
-        </TouchableOpacity>
-        <View style={[styles.headerAvatar, { backgroundColor: avatarColor }]}>
-          <Text style={styles.headerAvatarText}>{name.charAt(0)}</Text>
-        </View>
-        <Text style={styles.headerName} numberOfLines={1}>{name}</Text>
-        <AntDesign name="phone" size={20} color={Colors.primary} style={{ marginLeft: 8 }} />
-      </View>
-
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      >
-        {/* Danh sách tin nhắn */}
-        <FlatList
-          ref={flatListRef}
-          data={messages}
-          keyExtractor={item => item.id}
-          renderItem={renderItem}
-          contentContainerStyle={styles.messageList}
-          onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: false })}
-        />
-
-        {/* Ô nhập tin nhắn */}
-        <View style={styles.inputContainer}>
-          <TextInput
-            style={styles.textInput}
-            placeholder="Nhập tin nhắn..."
-            placeholderTextColor={Colors.textSecondary}
-            value={inputText}
-            onChangeText={setInputText}
-            multiline
-          />
-          <TouchableOpacity
-            style={[styles.sendBtn, !inputText.trim() && styles.sendBtnDisabled]}
-            onPress={sendMessage}
-            disabled={!inputText.trim()}
-          >
-            <AntDesign name="arrowright" size={18} color={Colors.white} />
-          </TouchableOpacity>
-        </View>
-      </KeyboardAvoidingView>
-    </SafeAreaView>
-  );
+export default function Chatbox() {
+  const navigation = useNavigation<any>(); const route = useRoute<any>(); const { partnerId } = route.params || {}; const { user } = useAuth();
+  const [partner, setPartner] = useState<UserProfile | null>(null); const [messages, setMessages] = useState<ChatMessage[]>([]); const [input, setInput] = useState(''); const listRef = useRef<FlatList<ChatMessage>>(null);
+  const chatId = user && partnerId ? createChatId(user.uid, partnerId) : '';
+  useEffect(() => { if (!partnerId) return undefined; return subscribeToUser(partnerId, setPartner); }, [partnerId]);
+  useEffect(() => { if (!user || !chatId) return undefined; const stop = subscribeToMessages(chatId, next => { setMessages(next); markConversationAsRead(user.uid, chatId); requestAnimationFrame(() => listRef.current?.scrollToEnd({ animated: true })); }); markConversationAsRead(user.uid, chatId); return stop; }, [chatId, user]);
+  const sendText = async () => { if (!user || !partnerId) return; try { const sent = await sendTextMessage(user.uid, partnerId, input); if (sent) setInput(''); } catch { Alert.alert('Không gửi được tin nhắn', 'Vui lòng kiểm tra kết nối mạng.'); } };
+  const sendLocation = async () => { if (!user || !partnerId) return; const granted = await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION, { title: 'Cho phép vị trí', message: 'ChatApp cần vị trí để gửi cho bạn bè.', buttonPositive: 'Cho phép', buttonNegative: 'Từ chối' }); if (granted !== PermissionsAndroid.RESULTS.GRANTED) { Alert.alert('Chưa có quyền vị trí', 'Bạn cần cho phép vị trí để gửi tọa độ.'); return; } Geolocation.getCurrentPosition(async position => { try { await sendLocationMessage(user.uid, partnerId, position.coords.latitude, position.coords.longitude); } catch { Alert.alert('Không gửi được vị trí', 'Vui lòng thử lại.'); } }, () => Alert.alert('Không lấy được vị trí', 'Hãy bật GPS và thử lại.'), { enableHighAccuracy: true, timeout: 15000, maximumAge: 10000 }); };
+  const openMap = (message: ChatMessage) => { if (message.latitude === undefined || message.longitude === undefined) return; Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${message.latitude},${message.longitude}`).catch(() => Alert.alert('Không mở được bản đồ', 'Thiết bị chưa có ứng dụng hỗ trợ Google Maps.')); };
+  return <SafeAreaView style={styles.safeArea}><View style={styles.header}><TouchableOpacity onPress={() => navigation.goBack()}><AntDesign name="arrowleft" size={22} color={Colors.primary} /></TouchableOpacity><View style={[styles.avatar, { backgroundColor: partner?.avatarColor || Colors.primary }]}><Text style={styles.avatarText}>{partner?.displayName?.charAt(0) || '?'}</Text></View><View style={{flex:1}}><Text style={styles.name}>{partner?.displayName || 'Đang tải...'}</Text><Text style={styles.status}>{partner?.online ? 'Đang hoạt động' : 'Không hoạt động'}</Text></View></View><KeyboardAvoidingView style={{flex:1}} behavior={Platform.OS === 'ios' ? 'padding' : undefined}><FlatList ref={listRef} data={messages} keyExtractor={item => item.id} contentContainerStyle={styles.list} onContentSizeChange={() => listRef.current?.scrollToEnd({ animated: true })} renderItem={({ item }) => { const mine = item.senderId === user?.uid; const body = <><Text style={[styles.messageText, mine && styles.mineText]}>{item.type === 'location' ? '📍 Vị trí hiện tại' : item.text}</Text>{item.type === 'location' && <Text style={[styles.mapLink, mine && styles.mineText]}>Nhấn để mở Google Maps</Text>}<Text style={[styles.time, mine && styles.mineTime]}>{timeLabel(item.createdAt)}</Text></>; return <View style={[styles.row, mine ? styles.right : styles.left]}>{!mine && <View style={[styles.miniAvatar, { backgroundColor: partner?.avatarColor || Colors.primary }]}><Text style={styles.miniAvatarText}>{partner?.displayName?.charAt(0)}</Text></View>}<TouchableOpacity disabled={item.type !== 'location'} onPress={() => openMap(item)} style={[styles.bubble, mine ? styles.mineBubble : styles.otherBubble]}>{body}</TouchableOpacity></View>; }} /><View style={styles.inputBar}><TouchableOpacity style={styles.locationButton} onPress={sendLocation}><Text style={{fontSize:22}}>📍</Text></TouchableOpacity><TextInput style={styles.input} placeholder="Nhập tin nhắn..." value={input} onChangeText={setInput} multiline /><TouchableOpacity disabled={!input.trim()} style={[styles.send, !input.trim() && styles.disabled]} onPress={sendText}><AntDesign name="arrowright" color={Colors.white} size={18} /></TouchableOpacity></View></KeyboardAvoidingView></SafeAreaView>;
 }
-
-const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: Colors.background },
-  header: {
-    flexDirection: 'row', alignItems: 'center',
-    backgroundColor: Colors.white,
-    paddingHorizontal: 12, paddingVertical: 10,
-    borderBottomWidth: 1, borderBottomColor: Colors.border,
-  },
-  backBtn: { padding: 4, marginRight: 8 },
-  headerAvatar: {
-    width: 36, height: 36, borderRadius: 18,
-    justifyContent: 'center', alignItems: 'center', marginRight: 10,
-  },
-  headerAvatarText: { color: Colors.white, fontWeight: 'bold', fontSize: 16 },
-  headerName: { fontSize: 16, fontWeight: '600', color: Colors.textPrimary, flex: 1 },
-  messageList: { padding: 12, paddingBottom: 8 },
-  messageRow: { flexDirection: 'row', marginVertical: 4, alignItems: 'flex-end' },
-  rowLeft: { justifyContent: 'flex-start' },
-  rowRight: { justifyContent: 'flex-end' },
-  miniAvatar: {
-    width: 28, height: 28, borderRadius: 14,
-    justifyContent: 'center', alignItems: 'center', marginRight: 6,
-  },
-  miniAvatarText: { color: Colors.white, fontSize: 12, fontWeight: 'bold' },
-  bubble: { maxWidth: '72%', borderRadius: 16, paddingHorizontal: 12, paddingVertical: 8 },
-  bubbleMe: { backgroundColor: Colors.bubbleMe, borderBottomRightRadius: 4 },
-  bubbleOther: {
-    backgroundColor: Colors.white, borderBottomLeftRadius: 4,
-    elevation: 1, shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 2,
-  },
-  bubbleText: { fontSize: 15, lineHeight: 20 },
-  textMe: { color: Colors.white },
-  textOther: { color: Colors.textPrimary },
-  timeText: { fontSize: 10, marginTop: 4 },
-  timeMe: { color: 'rgba(255,255,255,0.7)', textAlign: 'right' },
-  timeOther: { color: Colors.textSecondary },
-  inputContainer: {
-    flexDirection: 'row', alignItems: 'flex-end',
-    padding: 10, backgroundColor: Colors.white,
-    borderTopWidth: 1, borderTopColor: Colors.border,
-  },
-  textInput: {
-    flex: 1, minHeight: 40, maxHeight: 100,
-    borderWidth: 1, borderColor: Colors.border, borderRadius: 20,
-    paddingHorizontal: 14, paddingVertical: 8,
-    fontSize: 15, color: Colors.textPrimary, backgroundColor: Colors.inputBg,
-  },
-  sendBtn: {
-    marginLeft: 8, backgroundColor: Colors.primary,
-    borderRadius: 20, width: 40, height: 40,
-    justifyContent: 'center', alignItems: 'center',
-  },
-  sendBtnDisabled: { backgroundColor: Colors.border },
-});
-
-export default Chatbox;
+const styles = StyleSheet.create({safeArea:{flex:1,backgroundColor:Colors.background},header:{backgroundColor:Colors.white,padding:12,flexDirection:'row',alignItems:'center',borderBottomWidth:1,borderColor:Colors.border},avatar:{width:36,height:36,borderRadius:18,alignItems:'center',justifyContent:'center',marginLeft:12,marginRight:10},avatarText:{color:Colors.white,fontWeight:'bold'},name:{fontWeight:'600',fontSize:16,color:Colors.textPrimary},status:{fontSize:12,color:Colors.textSecondary,marginTop:1},list:{padding:12},row:{flexDirection:'row',marginVertical:4,alignItems:'flex-end'},left:{justifyContent:'flex-start'},right:{justifyContent:'flex-end'},miniAvatar:{width:28,height:28,borderRadius:14,alignItems:'center',justifyContent:'center',marginRight:6},miniAvatarText:{fontSize:12,color:Colors.white,fontWeight:'bold'},bubble:{maxWidth:'75%',borderRadius:16,paddingHorizontal:12,paddingVertical:8},mineBubble:{backgroundColor:Colors.bubbleMe,borderBottomRightRadius:4},otherBubble:{backgroundColor:Colors.white,borderBottomLeftRadius:4},messageText:{color:Colors.textPrimary,fontSize:15},mineText:{color:Colors.white},mapLink:{fontSize:12,textDecorationLine:'underline',color:Colors.primary,marginTop:4},time:{fontSize:10,color:Colors.textSecondary,marginTop:4},mineTime:{color:'rgba(255,255,255,0.75)',textAlign:'right'},inputBar:{backgroundColor:Colors.white,borderTopWidth:1,borderColor:Colors.border,padding:10,flexDirection:'row',alignItems:'flex-end'},locationButton:{padding:7,marginRight:4},input:{flex:1,minHeight:40,maxHeight:96,borderWidth:1,borderColor:Colors.border,borderRadius:20,paddingHorizontal:14,paddingVertical:8,color:Colors.textPrimary},send:{width:40,height:40,borderRadius:20,marginLeft:8,backgroundColor:Colors.primary,alignItems:'center',justifyContent:'center'},disabled:{backgroundColor:Colors.border}});

@@ -5,7 +5,7 @@ const Colors = {
   white: '#ffffff',
   textPrimary: '#262626',
   textSecondary: '#8c8c8c',
-  unread: '#ff4d4f',
+  unread: '#1890ff',
   online: '#52c41a',
   offline: '#bfbfbf',
   border: '#e8e8e8',
