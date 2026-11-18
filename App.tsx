@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, View } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
@@ -11,6 +11,8 @@ import ContactScreen from './src/Screen/ContactScreen';
 import NotificationScreen from './src/Screen/NotificationScreen';
 import SettingsScreen from './src/Screen/SettingsScreen';
 import Chatbox from './src/Screen/Chatbox';
+import CreateGroupScreen from './src/Screen/CreateGroupScreen';
+import { subscribeToNotifications } from './src/services/chatService';
 import Colors from './src/theme/colors';
 import { AuthProvider, useAuth } from './src/context/AuthContext';
 
@@ -18,10 +20,16 @@ const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
 
 function MainTabs() {
+  const { user } = useAuth();
+  const [unreadNotifications, setUnreadNotifications] = useState(0);
+  useEffect(() => {
+    if (!user) return;
+    return subscribeToNotifications(user.uid, items => setUnreadNotifications(items.filter(item => !item.readAt).length));
+  }, [user]);
   return <Tab.Navigator screenOptions={{ headerShown: false, tabBarActiveTintColor: Colors.primary, tabBarInactiveTintColor: Colors.textSecondary, tabBarStyle: { backgroundColor: Colors.white, borderTopColor: Colors.border, paddingBottom: 4, paddingTop: 4, height: 58 }, tabBarLabelStyle: { fontSize: 11, fontWeight: '500' } }}>
     <Tab.Screen name="Home" component={HomeScreen} options={{ tabBarLabel: 'Đoạn chat', tabBarIcon: ({ color, size }) => <AntDesign name="message1" size={size} color={color} /> }} />
     <Tab.Screen name="Contact" component={ContactScreen} options={{ tabBarLabel: 'Danh bạ', tabBarIcon: ({ color, size }) => <AntDesign name="team" size={size} color={color} /> }} />
-    <Tab.Screen name="Notification" component={NotificationScreen} options={{ tabBarLabel: 'Thông báo', tabBarIcon: ({ color, size }) => <AntDesign name="bells" size={size} color={color} /> }} />
+    <Tab.Screen name="Notification" component={NotificationScreen} options={{ tabBarLabel: 'Thông báo', tabBarBadge: unreadNotifications || undefined, tabBarIcon: ({ color, size }) => <AntDesign name="bells" size={size} color={color} /> }} />
     <Tab.Screen name="Settings" component={SettingsScreen} options={{ tabBarLabel: 'Cài đặt', tabBarIcon: ({ color, size }) => <AntDesign name="setting" size={size} color={color} /> }} />
   </Tab.Navigator>;
 }
@@ -29,7 +37,7 @@ function MainTabs() {
 function RootNavigator() {
   const { user, loading } = useAuth();
   if (loading) return <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}><ActivityIndicator color={Colors.primary} /></View>;
-  return <NavigationContainer>{user ? <Stack.Navigator screenOptions={{ headerShown: false }}><Stack.Screen name="Main" component={MainTabs} /><Stack.Screen name="Chatbox" component={Chatbox} /></Stack.Navigator> : <Stack.Navigator screenOptions={{ headerShown: false }}><Stack.Screen name="Login" component={LoginScreen} /><Stack.Screen name="Register" component={RegisterScreen} /></Stack.Navigator>}</NavigationContainer>;
+  return <NavigationContainer>{user ? <Stack.Navigator screenOptions={{ headerShown: false }}><Stack.Screen name="Main" component={MainTabs} /><Stack.Screen name="Chatbox" component={Chatbox} /><Stack.Screen name="CreateGroup" component={CreateGroupScreen} /></Stack.Navigator> : <Stack.Navigator screenOptions={{ headerShown: false }}><Stack.Screen name="Login" component={LoginScreen} /><Stack.Screen name="Register" component={RegisterScreen} /></Stack.Navigator>}</NavigationContainer>;
 }
 
 export default function App() { return <AuthProvider><RootNavigator /></AuthProvider>; }

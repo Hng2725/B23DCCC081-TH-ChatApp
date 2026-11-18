@@ -6,6 +6,8 @@ jest.mock('@react-native-async-storage/async-storage', () => ({}));
 jest.mock('firebase/auth', () => ({ getAuth: jest.fn(), getReactNativePersistence: jest.fn(), initializeAuth: jest.fn(), onAuthStateChanged: (_auth: unknown, callback: (user: null) => void) => { callback(null); return jest.fn(); }, createUserWithEmailAndPassword: jest.fn(), signInWithEmailAndPassword: jest.fn(), signOut: jest.fn(), updateProfile: jest.fn() }));
 jest.mock('firebase/database', () => ({ getDatabase: jest.fn(), onDisconnect: jest.fn(() => ({ update: jest.fn() })), onValue: jest.fn(() => jest.fn()), push: jest.fn(() => ({ key: 'message' })), ref: jest.fn(), runTransaction: jest.fn(), serverTimestamp: jest.fn(), update: jest.fn(), set: jest.fn(), get: jest.fn() }));
 jest.mock('@react-native-community/geolocation', () => ({ getCurrentPosition: jest.fn() }));
+jest.mock('react-native-image-picker', () => ({ launchCamera: jest.fn(), launchImageLibrary: jest.fn() }));
+jest.mock('@react-native-clipboard/clipboard', () => ({ setString: jest.fn() }));
 
 import App from '../App';
 

@@ -8,6 +8,7 @@ import {
 import { ref, serverTimestamp, set, update } from 'firebase/database';
 import { auth, database } from './firebase';
 import type { AppUser, UserProfile } from '../types/chat';
+import { clearPresence } from './presenceService';
 
 const avatarColors = ['#1890ff', '#f56a00', '#7265e6', '#00a2ae', '#87d068', '#d46b08'];
 
@@ -48,6 +49,7 @@ export function loginWithEmail(email: string, password: string) {
 
 export async function logout() {
   if (auth.currentUser) {
+    await clearPresence(auth.currentUser.uid);
     await update(ref(database, `users/${auth.currentUser.uid}`), {
       online: false,
       lastSeen: serverTimestamp(),
